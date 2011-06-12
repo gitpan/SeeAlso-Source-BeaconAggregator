@@ -1,0 +1,7 @@
+#FORMAT: PND-BEACON
+#TARGET: http://d-nb.info/gnd/{ID}
+#ONEMESSAGE: Hit in test repo
+118784226 
+132464462|1
+118624458 | 2
+118784226

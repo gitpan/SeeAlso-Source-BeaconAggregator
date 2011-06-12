@@ -1,0 +1,26 @@
+SeeAlso::Source::BeaconAggregator and related modules
+
+INSTALLATION
+
+Either:
+
+perl Build.PL
+Build
+Build test
+Build install
+
+Or:
+
+perl Makefile.PL
+make
+make test
+make install
+
+
+DEPENDENCIES
+
+Aside from using some fairly standard stuff, this module extends and 
+relies on the SeeAlso::Server distribution (containg SeeAlso::Source, 
+SeeAlso::Identifier)
+
+

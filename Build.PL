@@ -8,9 +8,9 @@ my $build = Module::Build->new(
 			  Carp	=> 0,
 		    File::Temp	=> 0,
 			   CGI	=> '3.0',
-		    HTTP::Date	=> '1.47',    # '5.0',
+		    HTTP::Date	=> '1.46',    # '5.0',
 		 HTTP::Request	=> '1.40',    # '5.0',
-		LWP::UserAgent	=> '5.0',
+		LWP::UserAgent	=> '2.031',
 			   DBI	=> '1.57',
 		   DBD::SQLite	=> '1.25',
 	       SeeAlso::Server	=> '0.57',
@@ -20,7 +20,8 @@ my $build = Module::Build->new(
 		},
 	build_requires => {
       SeeAlso::Identifier::GND	=> '0.54',
-	      Test::More	=> '0.90',
+		    Test::More	=> '0.90',
+			   Cwd	=> '3.0',
 		},
 #	configure_requires => {
 #		},

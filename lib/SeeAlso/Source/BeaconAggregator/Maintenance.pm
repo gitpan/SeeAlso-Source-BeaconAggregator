@@ -5,7 +5,7 @@ use warnings;
 BEGIN {
     use Exporter ();
     use vars qw($VERSION @ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
-    $VERSION     = '0.2_54';
+    $VERSION     = '0.2_55';
     @ISA         = qw(Exporter);
     #Give a hoot don't pollute, do not export more than needed by default
     @EXPORT      = qw();
@@ -233,16 +233,14 @@ XxX
     ) or croak("Setup error: ".$hdl->errstr);
 
 
-# enforce constraints
-# $hdl->do("CREATE UNIQUE INDEX IF NOT EXISTS hshrepalt ON beacons(hash, seqno, altid);") or croak("Setup error: ".$hdl->errstr);
-  $hdl->do("DROP INDEX IF EXISTS hshrepalt;") or croak("Setup error: ".$hdl->errstr);
 # Faciliate lookups
-  $hdl->do("DROP INDEX IF EXISTS ref;") or croak("Setup error: ".$hdl->errstr);
   $hdl->do("CREATE INDEX IF NOT EXISTS lookup ON beacons(hash);") or croak("Setup error: ".$hdl->errstr);
 # maintenance and enforce constraints
   $hdl->do("CREATE UNIQUE INDEX IF NOT EXISTS mntnce ON beacons(seqno, hash, altid);") or croak("Setup error: ".$hdl->errstr);
-# $hdl->do("CREATE INDEX IF NOT EXISTS maintenance ON beacons(seqno);") or croak("Setup error: ".$hdl->errstr);
-  $hdl->do("DROP INDEX IF EXISTS maintenance;") or croak("Setup error: ".$hdl->errstr);
+
+# enforce constraints
+# $hdl->do("CREATE UNIQUE INDEX IF NOT EXISTS hshrepalt ON beacons(hash, seqno, altid);") or croak("Setup error: ".$hdl->errstr);
+# $hdl->do("DROP INDEX IF EXISTS hshrepalt;") or croak("Setup error: ".$hdl->errstr);
 
 # foreign key on cascade does not work?
 
@@ -315,17 +313,17 @@ XxX
       else {
           warn "fixing identifierClass as $wanttype in admin table\n" if $options{'verbose'};
           print "fixing identifierClass as $wanttype" if $options{'verbose'};
-          my $ich = $self->stmtHdl("INSERT INTO admin VALUES (?, ?);", "fix identifier class statement");
-          $ich->execute($ickey, $wanttype)
-                or croak("Could not execute fix identifier class statement: ".$ich->errstr);
+          my $ichdl = $self->stmtHdl("INSERT INTO admin VALUES (?, ?);", "fix identifier class statement");
+          $ichdl->execute($ickey, $wanttype)
+                or croak("Could not execute fix identifier class statement: ".$ichdl->errstr);
           $self->{identifierClass} = $options{identifierClass};
         };
     }
   elsif ( (exists $options{identifierClass}) and (not $options{identifierClass}) ) {
       print "removing fixed identifierClass from admin table\n" if $options{'verbose'};
-      my $ich = $self->stmtHdl("DELETE FROM admin WHERE key=?;", "identifier class statement");
-      $ich->execute($ickey)
-            or croak("Could not execute remove identifier class statement: ".$ich->errstr);
+      my $ichdl = $self->stmtHdl("DELETE FROM admin WHERE key=?;", "identifier class statement");
+      $ichdl->execute($ickey)
+            or croak("Could not execute remove identifier class statement: ".$ichdl->errstr);
       delete $self->{identifierClass};
     };
 
@@ -996,7 +994,7 @@ XxX
   my ($osq, $ouri, $oalias, $feed, $fetchtime, $modtime) = $aryref ? @$aryref : ();
 
   my $uri = $params->{'_uri'} || $ouri || $feed;
-  croak("Cannot update $sq_or_alias: No URI given and also not to be determined") unless $uri;
+  croak("Cannot update $sq_or_alias: URI not given nor determinable from previous content") unless $uri;
   $uri =~ s/\s$//;
   $alias ||= $oalias || "";
 
@@ -1624,10 +1622,11 @@ sub addOSD {
   my ($self, $field, $value) = @_;
   $field || (carp("no OSD field name provided"), return undef);
   defined $self->osdKeys($field) || (carp("no valid OSD field '$field'"), return undef);
-  my $sth = $self->stmtHdl(<<"XxX");
+  my $sth = $self->{_handles}->{insertosd} || $self->stmtHdl(<<"XxX");
 INSERT INTO osd ( key, val ) VALUES ( ?, ? );
 XxX
   $sth->execute($field, $value) or croak("Could not execute >".$sth->{Statement}."<: ".$sth->errstr);
+  $self->{_handles}->{insertosd} ||= $sth;
   return 1;
 }
 
@@ -1674,13 +1673,38 @@ sub addBeaconMeta {
   my ($self, $rfield, $value) = @_;
   $rfield || (carp("no Beacon field name provided"), return undef);
   my $field = $self->beaconfields($rfield) or (carp("no valid Beacon field '$rfield'"), return undef);
-  my $sth = $self->stmtHdl(<<"XxX");
+  my $sth = $self->{_handles}->{insertosd} || $self->stmtHdl(<<"XxX");
 INSERT INTO osd ( key, val ) VALUES ( ?, ? );
 XxX
   $sth->execute($field, $value) or croak("Could not execute >".$sth->{Statement}."<: ".$sth->errstr);
+  $self->{_handles}->{insertosd} ||= $sth;
   return 1;
 }
 
+=head3 admin ( [$field, [$value]] )
+
+Manipulates the admin table.
+
+Yields a hashref to the admin tabl if called without arguments.
+
+If called with $field, returns the current value, and sets the
+table entry to $value if defined.
+
+
+=cut 
+
+sub admin {
+  my ($self, $field, $value) = @_;
+  my $admref =  $self->admhash();
+  return $admref unless $field;
+  my $retval = $admref->{$field};
+  return $retval unless defined $value;
+
+  my $admh = $self->stmtHdl("INSERT OR REPLACE INTO admin VALUES (?, ?);");
+  $admh->execute($field, $value)
+       or croak("Could not execute update admin table: ".$admh->errstr);
+  return defined($retval) ? $retval : "";
+}
 
 
 # on-the-fly conversions

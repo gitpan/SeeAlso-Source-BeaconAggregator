@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# Version 0.2_61
+# Version 0.2_63
 # $Id: $
 use lib "./lib";
 use strict;
@@ -214,7 +214,9 @@ my $db = SeeAlso::Source::BeaconAggregator::Maintenance->new(
         $dbfile ? ('file' => $dbfile) : (),
         $dsn ? ('dsn' => $dsn) : (),
         $iclass ? ('identifierClass' => $iclass) : (),
-        'accept' => {'VERSION' => qr'0.1', 'FORMAT' => '^(PND-)?B(?i:EACON)$'},
+        'accept' => {
+		'VERSION' => qr'0\.[12]',
+		 'FORMAT' => '^([GP]ND-)?B(?i:EACON)$'},
         'verbose' => $verbose,
     ) or die "could not open database $dsn / $dbfile";
 
@@ -360,6 +362,10 @@ Interface to the C<headers> method.
 
 Prints all OSD fields and then all beacon fields.
 
+The first argument is a sequence number, alias or pattern.
+
+See C<header> for restricting output to individual fields.
+
 =cut
 
 elsif ( $action eq "headers" ) {
@@ -383,22 +389,46 @@ elsif ( $action eq "headers" ) {
       };
   }
 
-=item header
+
+=item C<header>
+
+Interface to the C<headerfield> method.
+
+The first parameter is a mandatory and specifies a sequence number,
+alias or pattern (e.g. "C<%>") to operate on.
+
+Further arguments are of the form I<fieldname> or I<fieldname>=C<value>
+(value may be empty):
+For each of these arguments output a line consisting of the field name, " - "
+and the list of all values encountered. Subsequently, if the assignment form of the
+argument is given, the corresponding field is set to C<value> for all
+sequences met.
+
+Otherwise (no list of field names or assignments is specified), output will be
+a list of all I<alias> fields, roughly corresponding to C<headerfield "%" _alias>.
+
+See C<headers> for listing all fields defined for given sequences.
 
 =cut
 
 elsif ( $action eq "header" ) {
     my $seqno_or_alias = shift @ARGV or die "Please specify alias or number";
-    my $did = 0;
-    while ( scalar @ARGV && (my $field = shift @ARGV) ) {
-        my($key, $val) = split(/=/, $field, 2);
-        my($rows, @vals) = $db->headerfield($seqno_or_alias, $key, $val);
-        print "$key - @vals\n" if @vals && $verbose;
-        $did ++ if (defined $val) && $rows && (defined $vals[0]) && ($val ne $vals[0]);
-      };
-    if ( $did ) {
-        print "Changed $did fields for $seqno_or_alias\n";
-        refreshOSD(0);
+    if ( @ARGV ) {
+        my $did = 0;
+        while ( scalar @ARGV && (my $field = shift @ARGV) ) {
+            my($key, $val) = split(/=/, $field, 2);
+            my($rows, @vals) = $db->headerfield($seqno_or_alias, $key, $val);
+            print "$key - @vals\n" if @vals && $verbose;
+            $did ++ if (defined $val) && $rows && (defined $vals[0]) && ($val ne $vals[0]);
+          };
+        if ( $did ) {
+            print "Changed $did fields for $seqno_or_alias\n";
+            refreshOSD(0);
+          };
+      }
+    else {       # Simply dump a list of aliases
+       my($rows, @vals) = $db->headerfield($seqno_or_alias, "_alias");
+       print "@vals\n"
       };
   }
 
@@ -776,8 +806,6 @@ elsif ( $action eq "deflate" ) {
     $db->deflate}
 else {
     pod2usage({-message => "Unsupported action '$action'", -exitval => 3})}
-
-
 
 
 =back

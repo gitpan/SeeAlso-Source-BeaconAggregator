@@ -5,7 +5,7 @@ use warnings;
 BEGIN {
     use Exporter ();
     use vars qw($VERSION @ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
-    $VERSION     = '0.2_64';
+    $VERSION     = '0.2_65';
     @ISA         = qw(Exporter);
     #Give a hoot don't pollute, do not export more than needed by default
     @EXPORT      = qw();
@@ -1490,7 +1490,7 @@ XxX
       $self->{_iterator_idCounts} = $sth;
       unless ( defined $self->{identifierClass} ) {
           my $package = $self->autoIdentifier();
-          $options{'verbose'} && ref($package) && print "Assuming identifiers of type ".ref($package)."\n";
+          $options{'verbose'} && ref($package) && carp "Assuming identifiers of type ".ref($package)."\n";
         }
     };
   my $onerow = $self->{_iterator_idCounts}->fetchrow_arrayref;

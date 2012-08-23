@@ -2,7 +2,7 @@ package SeeAlso::Source::BeaconAggregator::Publisher;
 use strict;
 use warnings;
 
-our $VERSION = "0.2_65";
+our $VERSION = "0.2_66";
 
 =head1 NAME
 
@@ -641,7 +641,7 @@ XxX
               $uri = sprintf($repos->{'ALTTARGET'}, $pretty, SeeAlso::Source::BeaconAggregator::urlpseudoescape($vary->{'altid'}))}
           elsif ( $repos->{'TARGET'} ) {
               $uri = sprintf($repos->{'TARGET'}, $pretty)};
-          my $redundant = ($didalreadysee{$uri}++) ? "" : "subsequent";
+          my $redundant = ($didalreadysee{$uri}++) ? "subsequent" : "";
 
           my $guri = "";
           if ( $repos->{'IMGTARGET'} ) {
@@ -689,7 +689,7 @@ XxX
                   $uri = sprintf($repos->{'ALTTARGET'}, $pretty, SeeAlso::Source::BeaconAggregator::urlpseudoescape($vary->{'altid'}))}
               elsif ( $repos->{'TARGET'} ) {
                   $uri = sprintf($repos->{'TARGET'}, $pretty)};
-              my $redundant = ($didalreadysee{$uri}++) ? "" : "subsequent";
+              my $redundant = ($didalreadysee{$uri}++) ? "subsequent" : "";
 
               my $guri = "";
               if ( $repos->{'IMGTARGET'} ) {

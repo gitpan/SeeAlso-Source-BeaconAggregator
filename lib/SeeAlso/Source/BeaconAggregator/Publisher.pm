@@ -2,7 +2,7 @@ package SeeAlso::Source::BeaconAggregator::Publisher;
 use strict;
 use warnings;
 
-our $VERSION = "0.2_74";
+our $VERSION = "0.2_76";
 
 =head1 NAME
 
@@ -217,12 +217,12 @@ XxX
       push(@osdexamples, $expl);
     };
 
+  foreach ( grep /^[A-Z]+$/, keys %$preset ) {
+      $beaconmeta{$_} = $preset->{$_}}
 # Mandatory fields
-  push(@result, "#FORMAT: ".($preset->{'FORMAT'} || $beaconmeta{'FORMAT'} || $Defaults{'FORMAT'})."\n");
-  push(@result, "#VERSION: ".($preset->{'VERSION'} || $beaconmeta{'VERSION'} || $Defaults{'VERSION'})."\n");
-  if ( $preset->{'TARGET'} ) {
-      push(@result, "#TARGET: ".$preset->{'TARGET'}."\n")}
-  elsif ( $beaconmeta{'TARGET'} ) {
+  push(@result, "#FORMAT: ".($beaconmeta{'FORMAT'} || $Defaults{'FORMAT'})."\n");
+  push(@result, "#VERSION: ".($beaconmeta{'VERSION'} || $Defaults{'VERSION'})."\n");
+  if ( $beaconmeta{'TARGET'} ) {
       push(@result, "#TARGET: $beaconmeta{'TARGET'}\n")}
   elsif ( $cgibase ) {
       push(@result, "#TARGET: $cgibase?format=$uAformatname&id={ID}\n")}
@@ -233,7 +233,7 @@ XxX
 
   my $timestamp = $preset->{'TIMESTAMP'} || $osd{DateModified} || $^T;
   push(@result, "#TIMESTAMP: ".SeeAlso::Source::BeaconAggregator::tToISO($timestamp)."\n") if $timestamp > 0;
-  my $revisit = ($preset->{'REVISIT'} || $beaconmeta{'REVISIT'} || $Defaults{'REVISIT'}) || "";
+  my $revisit = ($beaconmeta{'REVISIT'} || $Defaults{'REVISIT'}) || "";
   $revisit =~ tr/ //d;
   $revisit =~ s/(\d+)mo\w*/($1*30)."d"/ei;
   $revisit =~ s/(\d+)M\w*/($1*30)."d"/e;
@@ -251,7 +251,7 @@ XxX
   $beaconmeta{'DESCRIPTION'} ||= $self->{Description} || $osd{'Description'};
   $beaconmeta{'NAME'} ||= $self->{ShortName} || $osd{'ShortName'};
   foreach ( grep !/^(FORMAT|REVISIT|TARGET|TIMESTAMP|VERSION)$/, SeeAlso::Source::BeaconAggregator->beaconfields() ) {
-      next unless my $val = $preset->{$_} || $beaconmeta{$_};
+      next unless my $val = $beaconmeta{$_};
       next if $val =~ /^-/;
       $val =~ s/\s+/ /g; $val =~ s/^\s+//; $val =~ s/\s+$//;
       push(@result, "#$_: $val\n");
@@ -268,6 +268,12 @@ XxX
       my ($sq, $ut) = @$aryref;
       push(@result, "#X-REVISION: $sq [".SeeAlso::Source::BeaconAggregator::tToISO($ut)."]\n") if $sq;
     };
+  my $admref = $self->admhash();
+  if ( my $cu = $admref->{'gcountu'} ) {
+      my $type = $admref->{'IDENTIFIER_CLASS'} || "";
+      push(@result, "#X-EXTENT: $cu unique identifiers".($type ? " of type $type" : "")."\n");
+    };
+
 
 ## PND-BEACON
 #                CONTACT => ['VARCHAR(63)'],
@@ -595,16 +601,18 @@ sub sources {          # Liste der Beacon-Header fuer Treffer
             }
         };
       $idlist{$pretty} = "queriedid";
-      if ( $clusterid eq $hash ) {
-          $idlist{$pretty} .= " preferredid"}
-      elsif ( $c ) {
-          $c->value("");
-          my $did = $c->hash($clusterid) || $c->value($clusterid);
-          my $p = $c->can("pretty") ? $c->pretty() : $c->value();
-          $idlist{$p} = "variantid preferredid";
-        }
-       else {
-          $idlist{$clusterid} = "variantid preferredid";
+      if ( $clusterid ) {
+          if ( $clusterid eq $hash ) {
+              $idlist{$pretty} .= " preferredid"}
+          elsif ( $c ) {
+              $c->value("");
+              my $did = $c->hash($clusterid) || $c->value($clusterid);
+              my $p = $c->can("pretty") ? $c->pretty() : $c->value();
+              $idlist{$p} = "variantid preferredid";
+            }
+           else {
+              $idlist{$clusterid} = "variantid preferredid";
+            }
         }
     }
 
@@ -766,16 +774,22 @@ XxX
           if ( $repos->{'IMGTARGET'} ) {
               $guri = sprintf($repos->{'IMGTARGET'}, $p, SeeAlso::Source::BeaconAggregator::urlpseudoescape($vary->{'altid'}))}
 
-          my $rlabel =  $repos->{'MESSAGE'} || $repos->{'DESCRIPTION'} || $repos->{'NAME'} || $repos->{'INSTITUTION'} || "???";
+          my @labels = grep /\S/, $repos->{'NAME'} || "", $repos->{'DESCRIPTION'} || "", $repos->{'INSTITUTION'} || "";
+          my $rlabel;
           if ( $hits == 1 ) {
               $rlabel = $repos->{'ONEMESSAGE'} if $repos->{'ONEMESSAGE'}}
           elsif ( $hits == 0 ) {
               $rlabel = $repos->{'SOMEMESSAGE'} if $repos->{'SOMEMESSAGE'}};
+          unless ( $rlabel ) {
+              $rlabel = $repos->{'MESSAGE'} || shift @labels || "???"};
           my $label = sprintf($rlabel, $hits);
+
+          my $ttip = pop @labels || "";
+          $ttip =~ s/&#(\d+);/chr($1)/ge;
 
           push(@result, $cgi->a({style=>"float: right; clear: right;", href=>$uri}, $cgi->img({alt=>$vary->{'info'}||$label,src=>$guri}))) if $guri;
 
-          push(@result, $cgi->h2({class=>"label $redundant $variantid ident_$p", id=>"head$aos"}, $cgi->a({href=>$uri}, $label)));
+          push(@result, $cgi->h2({class=>"label $redundant $variantid ident_$p", id=>"head$aos"}, $cgi->a({href=>$uri, title=>$ttip}, $label)));
 
           push(@result, qq!<div class="synopsis" id="syn$aos">!);
           push(@result, $cgi->span($vary->{'info'})) if $vary->{'info'};
@@ -793,11 +807,25 @@ XxX
       else {
           push(@result, $cgi->h3({class=>"hit", onClick=>"mtoggle('res$aos', 'hit')"}, "Result Details"));
           my $hits = scalar @vary;
-          my $rlabel =  $repos->{'SOMEMESSAGE'} || $repos->{'MESSAGE'} || $repos->{'DESCRIPTION'} || $repos->{'NAME'} || $repos->{'INSTITUTION'} || "???";
+
+          my @labels = grep /\S/, $repos->{'NAME'}, $repos->{'DESCRIPTION'}, $repos->{'INSTITUTION'};
+          my $rlabel = $repos->{'MESSAGE'} || shift @labels || "???";
+          my $ttip = pop @labels || "";
+          $ttip =~ s/&#(\d+);/chr($1)/ge;
+
+#          my $rlabel =  $repos->{'SOMEMESSAGE'} || $repos->{'MESSAGE'} || $repos->{'DESCRIPTION'} || $repos->{'NAME'} || $repos->{'INSTITUTION'} || "???";
+
+#          my $ttip = $repos->{'MESSAGE'} ? $repos->{'DESCRIPTION'} || $repos->{'NAME'} || $repos->{'INSTITUTION'} || ""
+
+#                                         : $repos->{'INSTITUTION'} || $repos->{'NAME'} || "";
+
+#          $ttip = "" if $ttip eq $rlabel;
+          $ttip =~ s/&#(\d+);/chr($1)/ge;
+
           my $label = sprintf($rlabel, $hits);
           push(@result, $cgi->h2({class=>"label", id=>"head$aos"}, $label));
 
-          push(@result, qq!<dl id="res$aos">!);
+          push(@result, qq!<dl id="res$aos" title="$ttip">!);
           my $cnt = 0;
           foreach my $vary ( @vary ) {
               $cnt ++;

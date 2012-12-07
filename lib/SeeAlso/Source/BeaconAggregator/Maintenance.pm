@@ -5,7 +5,7 @@ use warnings;
 BEGIN {
     use Exporter ();
     use vars qw($VERSION @ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
-    $VERSION     = '0.2_74';
+    $VERSION     = '0.2_76';
     @ISA         = qw(Exporter);
     #Give a hoot don't pollute, do not export more than needed by default
     @EXPORT      = qw();
@@ -358,7 +358,9 @@ XxX
 #     $admref =  $self->admhash();
     }
 
+  print "[ANALYZE ..." if $options{'verbose'};
   $hdl->do("ANALYZE;");
+  print "]\n" if $options{'verbose'};
   return 1;    # o.k.
 };
 
@@ -448,6 +450,7 @@ sub loadFile {
 
   my $mtime = (stat(_))[9];
   open(BKN, "<:utf8", $file) or (print "ERROR: cannot read $file\n", return undef);
+  local($.) = 0;
 
   $fields = {} unless $fields;
   $fields->{'_ftime'} ||= time();
@@ -711,7 +714,11 @@ XxX
   close(BKN);
 
   if ( $numchg or $options{'force'} ) {
-      $self->{dbh}->do("ANALYZE;") if $options{'force'};
+      if ( $options{'force'} ) {
+          print "[ANALYZE ..." if $options{'verbose'};
+          $self->{dbh}->do("ANALYZE;");
+          print "]\n" if $options{'verbose'};
+        };
 
       $self->admin('gcounti', $self->idStat(undef, 'distinct' => 0) || 0);
       $self->admin('gcountu', $self->idStat(undef, 'distinct' => 1) || 0);
@@ -749,11 +756,14 @@ sub processbeaconheader {
 
   if ( my $alias = $fieldref->{_alias} ) {
       my $stampfield = SeeAlso::Source::BeaconAggregator->beaconfields("TIMESTAMP");
-      my ($listh, $listexpl) = $self->stmtHdl("SELECT seqno, $stampfield, mtime, counti FROM repos WHERE alias=?;");
+      my ($listh, $listexpl) = $self->stmtHdl("SELECT seqno, $stampfield, mtime, counti, countu FROM repos WHERE alias=?;");
       $self->stmtExplain($listexpl, $alias) if $ENV{'DBI_PROFILE'};
       $listh->execute($alias) or croak("Could not execute >".$listh->{Statement}."<: ".$listh->errstr);
+      my ($rowcnt, $ocounti, $ocountu);
       while ( my($row) = $listh->fetchrow_arrayref ) {
           last unless defined $row;
+          $rowcnt ++;
+          ($ocounti, $ocountu) = ($row->[3], $row->[4]);
           if ( $options{'verbose'} ) {
               print "* Old Instances for $alias:\n" unless $osq;
               $osq = $row->[0];
@@ -761,6 +771,10 @@ sub processbeaconheader {
             }
           else {
               $osq = $row->[0]};
+        }
+      if ( $rowcnt && ($rowcnt == 1) ) {
+          $fieldref->{_counti} ||= $ocounti if $ocounti;
+          $fieldref->{_countu} ||= $ocountu if $ocountu;
         }
     };
 
@@ -1079,13 +1093,24 @@ XxX
       # temporary file for dumped contents
       my ($tmpfh, $tmpfile) = File::Temp::tempfile("BeaconAggregator-XXXXXXXX", SUFFIX => ".txt", TMPDIR => 1) or croak("Could not acquire temporary file for storage");
       my $contref;   # reference to content buffer
-      if ( $response->can("decoded_content") ) {
-          $contref = $response->decoded_content( raise_error => 1, ref => 1);
-        }
-      else {
-          $contref = $response->content_ref;
-          carp("please upgrade to LWP >= 5.817 for compression handling") if $options{'verbose'} && (!$lwpcarp817++);
+      if ( ! $response->content_is_text ) {
+          my $ct = $response->content_type;
+          print "WARNING: Response content is $ct, not text/*\n";
+          if ( my $ce = $response->content_encoding ) {
+              print "NOTICE: Response is also Content-encoded: $ce\n"}
+          my $ctt = join("|", $response->decodable());
+          if ( $ct =~ s!^(.+\/)?($ctt)$!$2! ) {
+      # yes: decode anyway since it could be a gzip-encoded .txt.gz file!
+              my $cr = $response->decoded_content( raise_error => 1, ref => 1);   # method exists since LWP 5.802 (2004-11-30)
+              $response->remove_content_headers;
+              my $newresp = HTTP::Response->new($response->code, $response->message, $response->headers);
+              $newresp->content_type("text/plain; charset: $charset");
+              $newresp->content_encoding($ct);
+              $newresp->content_ref($cr);
+              $response = $newresp;
+            }
         };
+      $contref = $response->decoded_content( raise_error => 1, ref => 1);   # method exists since LWP 5.802 (2004-11-30)
 
       if ( $$contref =~ /^\x{FFEF}/ ) {          # properly encoded BOM => put Characters to file
           binmode($tmpfh, ":utf8");
@@ -1241,7 +1266,11 @@ XxX
   $rows = 0 if $rows eq "0E0";
 
   if ( $rows or $options{'force'} ) {
-      $self->{dbh}->do("ANALYZE;") if $options{'force'};
+      if ( $options{'force'} ) {
+          print "[ANALYZE ..." if $options{'verbose'};
+          $self->{dbh}->do("ANALYZE;");
+          print "]\n" if $options{'verbose'};
+        };
 
       $self->admin('gcounti', $self->idStat(0, distinct => 0) || 0);
       $self->admin('gcountu', $self->idStat(0, distinct => 1) || 0);
@@ -1314,7 +1343,11 @@ XxX
     };
 
   if ( $trows or $options{'force'} ) {
-      $self->{dbh}->do("ANALYZE;") if $options{'force'};
+      if ( $options{'force'} ) {
+          print "[ANALYZE ..." if $options{'verbose'};
+          $self->{dbh}->do("ANALYZE;");
+          print "]\n" if $options{'verbose'};
+        };
 
       $self->admin('gcounti', $self->idStat(0, distinct => 0) || 0);
       $self->admin('gcountu', $self->idStat(0, distinct => 1) || 0);
@@ -1639,16 +1672,16 @@ XxX
 
 =head2 Manipulation of global metadata: Open Search Description
 
-=head3 setOSD ( $field, $value }
+=head3 setOSD ( $field, @values }
 
-Sets the field $field of the OpenSearchDescription to $value.
+Sets the field $field of the OpenSearchDescription to @value(s).
 
 =cut
 
 sub setOSD {
   my ($self) = shift;
-  $self->clearOSD(@_) or return undef;
-  return (defined $_[1]) ? $self->addOSD(@_) : 0;     # value to set
+  $self->clearOSD($_[0]) or return undef;
+  return (defined $_[1]) ? $self->addOSD(@_) : 0;     # value(s) to set
 };
 
 =head3 clearOSD ( $field }
@@ -1669,22 +1702,24 @@ XxX
   return 1;
 }
 
-=head3 addOSD ( $field, $value }
+=head3 addOSD ( $field, @values }
 
-Appends $value the (repeatable) field $field of the OpenSearchDescription.
+Adds more @value(s) as (repeatable) field $field of the OpenSearchDescription.
 
 =cut
 
 sub addOSD {
-  my ($self, $field, $value) = @_;
+  my ($self, $field, @values) = @_;
   $field || (carp("no OSD field name provided"), return undef);
+  return 0 unless @values;
   defined $self->osdKeys($field) || (carp("no valid OSD field '$field'"), return undef);
   my ($sth, $sthexpl) = $self->stmtHdl(<<"XxX");
 INSERT INTO osd ( key, val ) VALUES ( ?, ? );
 XxX
-  $self->stmtExplain($sthexpl, $field, $value) if $ENV{'DBI_PROFILE'};
-  $sth->execute($field, $value) or croak("Could not execute >".$sth->{Statement}."<: ".$sth->errstr);
-  return 1;
+  $self->stmtExplain($sthexpl, $field, $values[0]) if $ENV{'DBI_PROFILE'};
+  my $tstatus = [];
+  my $tuples = $sth->execute_array({ArrayTupleStatus => $tstatus}, $field, \@values) or croak("Could not execute >".$sth->{Statement}."<: ".$sth->errstr);
+  return $tuples;
 }
 
 =head2 Manipulation of global metadata: Beacon Metadata

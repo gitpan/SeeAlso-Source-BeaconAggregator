@@ -5,7 +5,7 @@ use warnings;
 BEGIN {
     use Exporter ();
     use vars qw($VERSION @ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
-    $VERSION     = '0.2_76';
+    $VERSION     = '0.2_77';
     @ISA         = qw(Exporter);
     #Give a hoot don't pollute, do not export more than needed by default
     @EXPORT      = qw();
@@ -533,17 +533,17 @@ sub loadFile {
 
          if ( @rest && ($rest[0] =~ /^\d*$/) ) {
              $hits = shift @rest;
-                                    # really throw out hits with explicit 0?
+                                    # really disregard hits with explicit 0?
              $info = shift @rest || "";
            }
          elsif ( defined $rest[1] ) {
-             $hits = "", shift @rest;
+             $hits = "";
+             shift @rest;
              $info = shift @rest;
            }
          elsif ( defined $rest[0] ) {
              $hits = "";
              $info = shift @rest;
-             shift @rest;
            };
          if ( @rest ) {
              print "WARNING: unparseable content >$_< [$showme l.$.]"};

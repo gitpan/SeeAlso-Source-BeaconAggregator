@@ -2,7 +2,7 @@ package SeeAlso::Source::BeaconAggregator::Publisher;
 use strict;
 use warnings;
 
-our $VERSION = "0.2_76";
+our $VERSION = "0.2_77";
 
 =head1 NAME
 
@@ -612,6 +612,21 @@ sub sources {          # Liste der Beacon-Header fuer Treffer
             }
            else {
               $idlist{$clusterid} = "variantid preferredid";
+            };
+          my ($varianth, $variantexpl) = $self->stmtHdl("SELECT beacons.hash FROM cluster.beacons WHERE beacons.altid=?;");
+          $self->stmtExplain($variantexpl, $clusterid) if $ENV{'DBI_PROFILE'};
+          $varianth->execute($clusterid) or croak("Could not execute >".$varianth->{Statement}."<: ".$varianth->errstr);
+          while ( my $onerow = $varianth->fetchrow_arrayref() ) {
+              my $v = $onerow->[0];
+              if ( $c ) {
+                  $c->value("");
+                  my $did = $c->hash($v) || $c->value($v);
+                  my $p = $c->can("pretty") ? $c->pretty() : $c->value();
+                  (exists $idlist{$p}) || ($idlist{$p} = "variantid");
+                }
+               else {
+                  (exists $idlist{$v}) || ($idlist{$v} = "variantid");
+                }
             }
         }
     }
@@ -709,7 +724,7 @@ XxX
           my (%vary, %repos, %meta);
           while ( my($key, $val) = each %$onerow ) {
               my $pval = $val;
-              unless ( $key =~ /feed|target|uri|link/i ) {
+              unless ( $key =~ /altid|feed|target|uri|link/i ) {
                   $pval =~ s/([<>&"]|[^\x00-\x7f])/'&#'.ord($1).';'/ge if defined $pval};
               if ( $key =~ /time|revisit/i ) {
                   next unless $val;
@@ -808,7 +823,7 @@ XxX
           push(@result, $cgi->h3({class=>"hit", onClick=>"mtoggle('res$aos', 'hit')"}, "Result Details"));
           my $hits = scalar @vary;
 
-          my @labels = grep /\S/, $repos->{'NAME'}, $repos->{'DESCRIPTION'}, $repos->{'INSTITUTION'};
+          my @labels = grep /\S/, $repos->{'NAME'} || "", $repos->{'DESCRIPTION'} || "", $repos->{'INSTITUTION'} || "";
           my $rlabel = $repos->{'MESSAGE'} || shift @labels || "???";
           my $ttip = pop @labels || "";
           $ttip =~ s/&#(\d+);/chr($1)/ge;

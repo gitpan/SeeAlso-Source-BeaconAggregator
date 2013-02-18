@@ -5,7 +5,7 @@ use warnings;
 BEGIN {
     use Exporter ();
     use vars qw($VERSION @ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
-    $VERSION     = '0.2_78';
+    $VERSION     = '0.2_79';
     @ISA         = qw(Exporter);
     #Give a hoot don't pollute, do not export more than needed by default
     @EXPORT      = qw();
@@ -448,8 +448,8 @@ sub loadFile {
       $options{'verbose'} && ref($package) && print "Assuming identifiers of type ".ref($package)."\n";
     };
 
-  my $mtime = (stat(_))[9];
   open(BKN, "<:utf8", $file) or (print "ERROR: cannot read $file\n", return undef);
+  my $mtime = (stat(_))[9];
   local($.) = 0;
 
   $fields = {} unless $fields;
